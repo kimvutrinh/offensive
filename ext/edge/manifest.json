@@ -1,0 +1,21 @@
+{
+	"name": "Pop-up Translator",
+	"manifest_version": 3,
+	"version": "1.0",
+	"permissions": [
+		"activeTab",
+		"scripting"
+	],
+	"background": {
+		"service_worker": "pop-up_translator.js"
+	},
+	"commands": {
+		"pop-up_translator": {
+			"suggested_key": {
+				"default": "Alt+J"
+			},
+			"description": "Pop-up Translator"
+		}
+	}
+}
+
