@@ -1,0 +1,1 @@
+**Philosophy** What is the general idea of each section, and then each paragraph? What does each paragraph actually talk about? Anything that the whole was hiding from us or not referring to? 
