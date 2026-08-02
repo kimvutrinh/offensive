@@ -50,9 +50,10 @@ $\Rightarrow$ Just because CISC reduces the number of instructions, but one inst
 **Data registers** Usually for arguments - rax, rbx, rcx, rdx and rdi, rsi (destination and source), additionally with r8, r9, r10
 **Pointer registers** rbp (base stack point), rsp (current stack pointer), rip (instruction pointer)
 **Sub-registers** rax: qword = ... + (eax: dword = ... + (ax: word = ah: byte + al))
+**Naming convention** ax - accumulator (*input/oput and arithmetic*), bx - base (*indexed addressing*), cx - counter (**rotate instructions and count loops**), dx - data (*I/O, multiply and divide large values*)  
 #### Address Endianness
-**When?** A little-endian system stores the least-significant byte at the smallest address - **reverse** of the original value! So, if we were to push an address or a string with Assembly, we would have to **push it in reverse**
-$\Rightarrow$ It's fine when we put hold string using **db**, but not when using **push hex_value**
+**When?** A little-endian system stores the least-significant byte at the smallest address - **reverse** of the original value! So, if we were to push an address or a string with Assembly, we would have to **push it in reverse**.
+$\Rightarrow$ During load and save operations! It's fine when we put hold string using **db**, but not when using **push hex_value**
 Printing string (in gdb) in **stack** is from lower address to higher address - from right to left and from low to high!
 ## II. Computer Architecture
 
@@ -68,7 +69,7 @@ $\Rightarrow$ Define how many of clock cycles happen in one second
 CPU = Control Unit (move and control data) + Arithmetic/Logic Unit
 
 #### Instruction Cycle
-Fetch -> Decode -> Execute -> Store
+Fetch -> Decode -> Fetch operands -> Execute -> Store
 ### 2. Segments
 **Stack** is fixed in size and is specified-ordered memory
 **Heap** is hierarchical and random-access memory 
@@ -79,6 +80,16 @@ Fetch -> Decode -> Execute -> Store
 
 **How?** We should have 16-bytes (or a multiple of 16) on top of the stack before making a call. How should we know if a segmentation fault occurs because of non-aligned stack, such as printf needs to align extra 8 byte?
 $\Rightarrow$ Just search for something like "segmentation fault at **movaps**"! That's it!
+
+> **Stack Frames**  
+> ```nasm
+> push ebp        ; <---- 1. Stores previous EBP
+> mov ebp, esp    ; <---- 2. Creates new Stack Frame
+> sub esp, 0x404  ; <---- 3. Moves ESP to the top
+> <...SNIP...>
+> leave
+> ret             ; <---- 4. Leave stack frame
+> ```
 ### 3. Position-Independent Executables
 The memory addresses are used relative to their distance from the instruction pointer **$rip** within the program's own **Virtual RAM**
 
