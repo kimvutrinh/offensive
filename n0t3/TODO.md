@@ -11,3 +11,6 @@
 #### 08
 - [x] [ 09:00 ] Investigate Compilation Process
 - [ ] [ 12:00 ] Resolve Educational Codeforces Round 193
+	- [ ] [ 20:00 ] Resolve Educational Codeforces Round 193
+
+#### 09
