@@ -16,12 +16,6 @@
 5. **\_BigInt(N)** struct of 64-bit integer chunks if N $\gt$ 64, otherwise same size and alignment as the smallest of char, short, int, long and long long types that can contain them
 
 $\Rightarrow$ **\_Alignof** queries the alignment requirement of its operand type
-
-### I-c) Register
-1. 16 general purpose 64-bit, 16 SSE 128-bit and 8 x87 floating point 80-bit (64-bit in MMX/3DNow! mode) registers are global to all procedures active for a given thread
-2. Intel AVX (Advanced Vector Extensions) provides 16 AVX 256-bit registers and Intel AVX-512 provides 32 SIMD 512-bit registers (%zmm$N$ $\rightarrow$ AVX %ymm$N$ $\rightarrow$ SSE %xmm$N$); vector register refers to either SSE, AVX or AVX-512 register
-3. Intel AVX-512 also provides 8 vector mask 64-bit (%k$N$) and Intel APX (Advanced Performance Extensions) provides 16 general purpose 64-bit registers (%r16-%r31),\
-Intel AMX (Advanced Matrix Extensions) provides 8 tile registers (%tmm$N$)
 ### I-d) Instruction
 1. AMD64 usually doesn't allow an instruction to encode 64-bit constant as immediate operand, but mostly accepts 32-bit immediate that are sign extended to the 64-bit
 2. 32-bit operations with register destinations implicitly perform zero extension making loads of 64-bit immediates with upper half set to 0 even cheaper
