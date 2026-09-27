@@ -1,0 +1,311 @@
+\documentclass{article}
+\usepackage{adjustbox}
+\usepackage{amsmath}
+\usepackage{caption}
+\usepackage{cmap}
+\usepackage{diagbox}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{lmodern}
+\usepackage{multirow}
+\usepackage{parskip}
+\usepackage{pgf}
+\usepackage{xcolor}
+\usepackage{xfp}
+\usepackage{xparse}
+\usepackage{subfiles}
+\usepackage{svg}
+\usepackage{tabularx}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{trimclip}
+\usepackage[newfloat]{minted}
+\usepackage[T1]{fontenc}
+
+
+
+% ==================================================
+% ======================== COLORS ==================
+% ==================================================
+\definecolor{myBrown}{HTML}{9a7868}
+\definecolor{myRed}{HTML}{ee6b6e}
+
+\newcommand{\brownline}[1]{%
+    \begin{tikzpicture}[baseline=(current bounding box.center)]
+        \shade[
+            left color=myBrown!7,
+            right color=myBrown!7,
+            middle color=myBrown!14,
+            rounded corners=1pt 
+        ]
+            (0,0) rectangle (\linewidth,#1);
+    \end{tikzpicture}%
+}
+
+
+% ==================================================
+% ======================== SETTINGS ================
+% ==================================================
+\hypersetup{hidelinks}
+\tcbuselibrary{most}
+\usetikzlibrary{
+    calc, decorations.pathmorphing, 
+    math, shadows.blur, patterns
+}
+\geometry{
+    a4paper, landscape,
+    top=3mm, bottom=9mm, left=5mm, right=5mm,
+}
+\pgfdeclarelayer{pinlayer}
+\pgfdeclarelayer{catenarylayer}
+\pgfsetlayers{main, catenarylayer, pinlayer}
+\setminted{
+    autogobble=true,
+    breaklines=true, 
+    breakanywhere=true,
+}
+
+
+% ==================================================
+% ======================== HEADER FOOTER ===========
+% ==================================================
+\pagestyle{fancy}
+\fancyfoot[C]{\rightmark}
+
+\setlength{\footskip}{6mm}
+\newcommand{\FooterText}{}
+
+\fancyfoot[L]{\FooterText}
+\fancyfoot[R]{\texttt{\thepage}}
+
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+\newcommand{\TOC}[1]{%
+	\clearpage
+	\markright{\texttt{#1}}%
+	\phantomsection
+	\addcontentsline{toc}{section}{#1}%
+}
+
+% ==================================================
+% ======================== EVIDENCE ================
+% ==================================================
+\tikzset{
+    hand drawn/.style={
+        draw=myBrown!30,
+        append after command={
+            \pgfextra{
+                \let\mn=\tikzlastnode
+                \draw[
+                    decorate,
+                    decoration={
+                        random steps,
+                        segment length=10pt,
+                        amplitude=0.15pt
+                    },
+                    draw=myBrown!50,
+                    line width=1pt,
+                    line cap=round,
+                    line join=round,
+                ]
+                (\mn.north west)
+                -- (\mn.north east)
+                -- (\mn.south east)
+                -- (\mn.south west)
+                -- cycle;
+            }
+        }
+    }
+}
+
+% Usage: \createpin{name}{x,y}[layer]
+\NewDocumentCommand{\createpin}{m O{0} m}{%
+    \def\coord##1,##2\relax{%
+        \pgfmathsetlengthmacro{\pinshift}{#2*15mm}%
+        \pgfmathsetlengthmacro{\xpos}{##1*1mm + \pinshift}%
+        \pgfmathsetlengthmacro{\xLone}{##1*1mm + \pinshift - 15mm}%
+        \pgfmathsetlengthmacro{\xLtwo}{##1*1mm + \pinshift - 30mm}%
+        \begin{pgfonlayer}{pinlayer}
+            \node[inner sep=0] (#1) at (\xpos, ##2mm) {%
+                \includegraphics[width=3.7mm]{image/pin.png}%
+            };%
+        \end{pgfonlayer}%
+        \coordinate (#1L1) at (\xLone, ##2mm);%
+        \coordinate (#1L2) at (\xLtwo, ##2mm);%
+    }%
+    \expandafter\coord#3\relax
+}
+
+% Usage: \begin{absnode}[X]{pin}{width}{short text}
+\newcounter{absnodepg}
+\newsavebox{\mintedbox}
+\newenvironment{absnode}[4][]
+{%
+    \def\savedcoord{#2}%
+    \pgfmathsetmacro{\boxwidth}{#3}%
+    \def\shorttext{#4}%
+
+    % Page number
+    \if\relax\detokenize{#1}\relax
+        \stepcounter{absnodepg}%
+        \def\shownumber{1}%
+    \else
+        \setcounter{absnodepg}{#1}%
+        \ifnum#1=-1
+            \def\shownumber{0}%
+        \else
+            \def\shownumber{1}%
+        \fi
+    \fi
+
+    \def\abspadding{5pt}%
+
+    \pgfmathsetlengthmacro{\contentwidth}{\boxwidth*1mm - 2*\abspadding}%
+    \pgfmathsetlengthmacro{\xoffset}{-0.5*\boxwidth*1mm}%
+
+    \pgfinterruptpicture
+    \global\setbox\mintedbox=\hbox\bgroup
+    \begin{minipage}{\contentwidth}%
+    \footnotesize
+}
+{%
+    \end{minipage}%
+    \egroup
+    \endpgfinterruptpicture
+
+    \node[
+        hand drawn,
+        align=left,
+        anchor=north west,
+        inner sep=\abspadding,
+        text width=\contentwidth,
+        outer sep=0pt,
+        fill=white,
+        fill opacity=0.95,
+        text opacity=1,
+    ] 
+    at ([xshift=\xoffset]\savedcoord)
+    {%
+        \noindent
+        \vspace{-17pt}\par
+        \brownline{5pt}
+        \vspace{-5pt}\par
+
+        \usebox{\mintedbox}%
+        \strut
+
+        \ifnum\shownumber=1
+            \par\vspace{2pt}%
+            \noindent
+            {\tiny\textcolor{gray}{\texttt{\shorttext}}}%
+            \hfill
+            {\tiny\textcolor{gray}{\texttt{\theabsnodepg}}}%
+        \else
+            \if\relax\detokenize{\shorttext}\relax
+            \else
+                \par\vspace{2pt}%
+                \noindent
+                {\tiny\textcolor{gray}{\texttt{\shorttext}}}%
+            \fi
+        \fi
+    };%
+}
+
+
+% Usage: \drawcatenary[style]{pin}{pin}{offset}
+\newcommand{\drawcatenary}[4][myBrown!20, thick]{%
+    \path (#2); \pgfgetlastxy{\catXStartDim}{\catYStartDim}
+    \path (#3); \pgfgetlastxy{\catXEndDim}{\catYEndDim}
+    
+    \pgfmathsetmacro{\catXStart}{\catXStartDim/10mm}
+    \pgfmathsetmacro{\catYStart}{\catYStartDim/10mm}
+    \pgfmathsetmacro{\catXEnd}{\catXEndDim/10mm}
+    \pgfmathsetmacro{\catYEnd}{\catYEndDim/10mm}
+
+    \def\catStartNode{#2}
+    \def\catIsReversed{0}
+
+    \ifdim\catXStart mm > \catXEnd mm
+        \pgfmathsetmacro{\catTempX}{\catXStart} \pgfmathsetmacro{\catXStart}{\catXEnd} \pgfmathsetmacro{\catXEnd}{\catTempX}
+        \pgfmathsetmacro{\catTempY}{\catYStart} \pgfmathsetmacro{\catYStart}{\catYEnd} \pgfmathsetmacro{\catYEnd}{\catTempY}
+        \def\catStartNode{#3}
+        \def\catIsReversed{1}
+    \fi
+
+    \pgfmathsetmacro{\catDeltaX}{\catXEnd-\catXStart}
+    \pgfmathsetmacro{\catDeltaY}{\catYEnd-\catYStart}
+    \pgfmathsetmacro{\catChord}{sqrt((\catDeltaX)^2 + (\catDeltaY)^2)}
+    \pgfmathsetmacro{\catLength}{\catChord + #4}
+
+    \begin{pgfonlayer}{catenarylayer}
+        \pgfmathparse{\catLength <= \catChord + 0.0001 || \catDeltaX < 0.001 ? 1 : 0}
+        \ifnum\pgfmathresult=1
+            \draw[#1] (#2) -- (#3);
+        \else
+            \pgfmathsetmacro{\catRatio}{max(sqrt(max((\catLength)^2 - (\catDeltaY)^2, 1e-9)) / max(\catDeltaX, 1e-6), 1.000000001)}
+            \pgfmathsetmacro{\catU}{\catRatio < 3 ? sqrt(6*(\catRatio-1)) : ln(2*\catRatio) + ln(ln(2*\catRatio)) + 1}
+
+            \foreach \catIter in {1,...,15}{
+                \pgfmathparse{max(\catU - (sinh(\catU) - \catRatio*\catU) / (sign(cosh(\catU) - \catRatio) * max(abs(cosh(\catU) - \catRatio), 1e-9)), 1e-7)}
+                \xdef\catU{\pgfmathresult}
+            }
+
+            \pgfmathsetmacro{\catA}{\catDeltaX / (2*\catU)}
+            \pgfmathsetmacro{\catZ}{min(max(\catDeltaY / \catLength, -0.999999999), 0.999999999)}
+            \pgfmathsetmacro{\catXZero}{(\catXStart + \catXEnd)/2 - \catA * 0.5 * ln((1+\catZ)/(1-\catZ))}
+            \pgfmathsetmacro{\catYZero}{\catYStart - \catA * cosh((\catXStart-\catXZero)/\catA)}
+            \pgfmathsetmacro{\catYEndCalc}{\catA * cosh((\catXEnd-\catXZero)/\catA) + \catYZero}
+            
+            \pgfmathsetmacro{\angleAct}{atan2(\catYEnd - \catYStart, max(\catDeltaX, 1e-6))}
+            \pgfmathsetmacro{\angleCalc}{atan2(\catYEndCalc - \catYStart, max(\catDeltaX, 1e-6))}
+            \pgfmathsetmacro{\chordAct}{sqrt(\catDeltaX^2 + (\catYEnd-\catYStart)^2)}
+            \pgfmathsetmacro{\chordCalc}{sqrt(\catDeltaX^2 + (\catYEndCalc-\catYStart)^2)}
+            \pgfmathsetmacro{\scaleFac}{\chordAct / max(\chordCalc, 1e-6)}
+
+            \begin{scope}[shift={(\catStartNode)}, rotate=\angleAct - \angleCalc, scale=\scaleFac]
+                \ifnum\catIsReversed=1
+                    \draw[#1, domain=\catDeltaX:0, samples=150] 
+                        plot (\x, {\catA * cosh((\x+\catXStart-\catXZero)/\catA) + \catYZero - \catYStart});
+                \else
+                    \draw[#1, domain=0:\catDeltaX, samples=150] 
+                        plot (\x, {\catA * cosh((\x+\catXStart-\catXZero)/\catA) + \catYZero - \catYStart});
+                \fi
+            \end{scope}
+        \fi
+    \end{pgfonlayer}
+}
+
+
+% ==================================================
+% ======================== CODE SNIPPET ============
+% ==================================================
+\newminted[nasm]{nasm}{}
+\newminted[gdb]{console}{}
+\newminted[cpp]{cpp}{}
+\newminted[python]{python}{}
+\newminted[bash]{bash}{
+    breaksymbolright=\textbackslash,
+    breaksymbolsepright=0mm,
+    breaksymbolindentright=2mm 
+}
+
+
+% ==================================================
+% ======================== UTILS ===================
+% ==================================================
+\newcommand{\hatchcell}[2]{%
+	\tikz{
+		\fill[pattern=north east lines] (0,0) rectangle (#1,#2);
+	}%
+}
+\newcommand{\userline}{\noindent\rule{\linewidth}{1pt}}
+
+% ==================================================
+% ======================== DOCUMENT ================
+% ==================================================
+\begin{document}
+\end{document}

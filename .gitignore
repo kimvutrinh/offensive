@@ -1,0 +1,8 @@
+*
+
+!*.tex
+!LICENSE
+!.gitignore
+
+!*/
+!image/**

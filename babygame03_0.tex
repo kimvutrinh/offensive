@@ -1,0 +1,805 @@
+\documentclass[main.tex]{subfiles}
+
+\begin{document}
+
+% 20 - 20 - 24 - 27 - 30 - 33
+\begin{tikzpicture}
+	 =============================== GDB ===============================
+    \createpin{gdb}{250,0}
+    \begin{absnode}[-1]{gdb}{70}{GDB commands}
+        \begin{bash}
+            gdb --batch -ex "disassemble ?" ?          \
+                | sed -E '/^ /!d; s/^[^<]+//'
+
+            gdb --batch -ex "disassemble /r ?,+?" ?    \
+                | sed -E -e '/\t/!d; s/^[^\t]+\t//;'   \
+                    -e 's/^([^\t]*)\t([^\t]*)/\2; \1/'
+        \end{bash}
+    \end{absnode}
+   
+	 =============================== Stack ===============================
+    \createpin{stack0}{250,-33}
+	\begin{absnode}[-1]{stack0}{70}{Initial Process Stack [System V ABI]}
+        \centering
+        \renewcommand{\arraystretch}{1.6}
+		\begin{tabularx}{\linewidth}[t]{r|>{\centering\arraybackslash}X|} % Uses tabularx and X column
+			\cline{2-2}
+			\texttt{HIGH ->} & Unspecified \\
+			\cline{2-2}
+			\texttt{vary in size} & Information block \quad \quad \quad
+			\scriptsize{argument strings, environment strings, auxiliary information, \quad $\dots$}  \\
+			\cline{2-2}
+			& Unspecified \\
+			\cline{2-2}
+			\texttt{1 8byte} & Null auxiliary vector entry \\
+			\cline{2-2}
+			\texttt{each> 2 8byte} & Auxiliary vector entries $\cdots$ \\
+			\cline{2-2}
+			& (8byte) 0 \\
+			\cline{2-2}
+			& Environment pointers $\cdots$ \\
+			\cline{2-2}
+			\texttt{8[rsp,argc,8]} & (8byte) 0 \\
+			\cline{2-2}
+			\texttt{8[rsp]} & Argument pointers \texttt{**ubp\_av} \\
+			\cline{2-2}
+			\texttt{[rsp]} & Argument count \texttt{argc} \\
+			\cline{2-2}
+			\texttt{LOW ->} & Undefined \\
+			\cline{2-2}
+		\end{tabularx}
+		\vspace{1mm}
+	\end{absnode}
+
+    \createpin{stack1}{250,-116}
+	\begin{absnode}[-1]{stack1}{70}{Stack Frame with Base Pointer [System V ABI]}
+		\centering
+		\renewcommand{\arraystretch}{1.6}
+		\begin{tabular}{r|c|}
+			\cline{2-2}
+			\texttt{PREV FRAME} & Argument pointers \texttt{**ubp\_av} \\
+			\cline{2-2}
+			\texttt{LOW ->}\rule{0pt}{1.75\dimexpr\ht\strutbox+\dp\strutbox\relax} &\hatchcell{3.85}{0.43} \\
+			\cline{2-2}
+			\texttt{8n+16[rbp]} & (8byte) memory argument \texttt{n} \\
+			& \dots \\
+			\texttt{16[rbp]} & (8byte) memory argument \texttt{0} \\
+			\cline{1-2}
+			\texttt{8[rbp]} & return address \\ \cline{2-2}
+			\texttt{0[rbp]} & previous \texttt{rbp} value \\
+			\cline{2-2}
+			\texttt{-8[rbp]} & unspecified \\
+			& \dots \\
+			\texttt{0[rsp]} & variable size \\
+			\cline{2-2}
+			\texttt{-128[rsp]} & red zone\\
+			\cline{2-2}
+		\end{tabular}
+		\vspace{1mm}
+	\end{absnode}
+	
+	 =============================== PLT ===============================
+	\createpin{plt}{145,-155.1}
+	\begin{absnode}[-1]{plt}{115}{Procedure Linkage Table (small \& medium models) [System V ABI]}
+		\begin{nasm}
+			.PLT0:  push   QWORD PTR [rip+GOT+8] ; GOT[0] - identifying information
+			        jmp    QWORD PTR [rip+GOT+16]; GOT[1] - dynamic linker's resolver
+			        nop    DWORD PTR [rax]
+			.PLT1:  jmp    QWORD PTR [rip+name1@GOTPCREL]; <.PLT0+16>
+			        push   index1
+			        jmp    .PLT0
+			.PLT2:  ...                                  ; <.PLT1+16>
+		\end{nasm}
+	\end{absnode}
+
+	 =============================== LibC ===============================
+	\createpin{libc}{176,-104.6}
+	\begin{absnode}[-1]{libc}{68}{\href{https://refspecs.linuxfoundation.org/LSB_5.0.0/LSB-Core-generic/LSB-Core-generic/baselib---libc-start-main-.html}{[Linux Standard Base Common Definitions]}}
+		\begin{cpp}	
+			int __libc_start_main(
+			int (*main) (int, char **, char **)
+			, int argc
+			, char ** ubp_av
+			, void (*init) (void)
+			, void (*fini) (void)
+			, void (*rtld_fini) (void)
+			, void (*stack_end)
+			);
+		\end{cpp}
+	\end{absnode}
+	
+	 =============================== OPERATION ===============================
+    \createpin{main0}{106,0}
+    \begin{absnode}[0]{main0}{62}{0x8049871 <main> prologue()}
+        \begin{nasm}
+			<+0>:   lea    ecx,[esp+0x4] 
+			<+4>:   and    esp,0xfffffff0
+			<+7>:   push   DWORD PTR [ecx-0x4]
+			<+10>:  push   ebp
+			<+11>:  mov    ebp,esp
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start0}{35,0}
+    \begin{absnode}{start0}{70}{0x08049100 <\_start> set\_null(ebp)}
+        \begin{nasm}
+            <+0>:   endbr32
+            <+4>:   xor    ebp,ebp
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start1}[1]{35,-124}
+    \begin{absnode}{start1L1}{70}{<\_start>}
+        \begin{nasm}
+            <+39>:  call   0x8049040 <__libc_start_main@plt>
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start2}{35,-20}
+    \begin{absnode}{start2}{70}{<\_start>}
+        \begin{nasm}
+            <+6>:   pop    esi
+            <+7>:   mov    ecx,esp
+            <+9>:   and    esp,0xfffffff0; 16byte align
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start3}{35,-44}
+    \begin{absnode}{start3}{70}{<\_start> prepare\_arguments(\_\_libc\_start\_main, 0th)}
+        \begin{nasm}
+            <+12>:  push   eax; dummy padding
+            <+13>:  push   esp
+            <+14>:  push   edx; rtld_fini's registered by the application using atexit(BA_OS)
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start4}{35,-91}
+    \begin{absnode}{start4}{70}{<\_start> prepare\_arguments(\_\_libc\_start\_main, 1st)}
+        \begin{nasm}
+            <+26>:  push   0x0
+            <+28>:  push   0x0
+            <+30>:  push   ecx
+            <+31>:  push   esi
+            <+32>:  mov    eax,0x8049871
+            <+38>:  push   eax
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start5}[1]{35,-71}
+    \begin{absnode}{start5L1}{70}{<\_start> set\_got\_base(ebx)}
+        \begin{nasm}
+            <+15>:  call   0x804912d <_start+45>
+            <+20>:  add    ebx,0x2eec; 0x804c000
+        \end{nasm}
+    \end{absnode}
+
+    \createpin{start6}[2]{35,-171.4}
+    \begin{absnode}{start6L2}{70}{<\_start> set\_next\_instruction\_address(ebx)}
+        \begin{nasm}
+            <+45>:  mov    ebx,DWORD PTR [esp]
+            <+48>:  ret
+        \end{nasm}
+    \end{absnode}
+    
+    \createpin{start7}[1]{35,-144}
+    \begin{absnode}{start7L1}{70}{<\_start> crash\_program()}
+        \begin{nasm}
+            <+44>:  hlt
+        \end{nasm}
+    \end{absnode}
+
+	\createpin{plt1}{106,-124}
+	\begin{absnode}{plt1}{62}{0x08049040 <\_\_libc\_start\_main@plt>}
+		\begin{nasm}
+			<+0>:   jmp    DWORD PTR ds:0x804c00c
+			<+6>:   push   0x0
+			<+11>:  jmp    0x8049030
+		\end{nasm}
+	\end{absnode}
+
+	\createpin{plt0}[1]{106,-97.7}
+	\begin{absnode}{plt0L1}{62}{0x08049030 <.PLT0@plt>}
+		\begin{nasm}
+			<+0>:   push   DWORD PTR ds:0x804c004
+			<+6>:   jmp    DWORD PTR ds:0x804c008
+			<+12>:  add    BYTE PTR [eax],al; 00 00              
+			<+14>:  add    BYTE PTR [eax],al; 00 00    
+		\end{nasm}
+	\end{absnode}
+	
+	\createpin{main1}{106,-57.5}
+	\begin{absnode}{main1}{62}{<main> epilogue()}
+		\begin{nasm}
+			<+415>: nop
+			<+416>: mov    eax,0x0
+			<+421>: lea    esp,[ebp-0x8]
+			<+424>: pop    ecx
+			<+425>: pop    ebx
+			<+426>: pop    ebp
+			<+427>: lea    esp,[ecx-0x4]
+			<+430>: ret
+		\end{nasm}
+	\end{absnode}
+
+	\createpin{main2}{106,-24}
+	\begin{absnode}{main2}{62}{}
+		\begin{nasm}
+			<+13>:  push   ebx; callee-saved
+			<+14>:  push   ecx
+			<+15>:  sub    esp,0xab0
+			<+21>:  call   0x8049150 <__x86.get_pc_thunk.bx>
+			<+26>:  add    ebx,0x2775; 0x804c000
+		\end{nasm}
+	\end{absnode}
+
+	\createpin{cpp0}{176,-57.5}
+	\begin{absnode}{cpp0}{68}{<CPP>}
+		\begin{cpp}
+			return 0;
+		\end{cpp}
+	\end{absnode}
+	
+	\createpin{main3}{176,-24}
+	\begin{absnode}{main3}{68}{0x8049150 <\_\_x86.get\_pc\_thunk.register>}
+		\begin{nasm}
+			<+0>:     mov    register,DWORD PTR [esp]
+			<+3>:     ret
+		\end{nasm}
+	\end{absnode}
+	
+	\createpin{got0}{176,0}
+	\begin{absnode}{got0}{68}{}
+		\begin{nasm}
+			0x804c000: .got.plt
+		\end{nasm}
+	\end{absnode}
+
+    \drawcatenary{start0}{main0}{0.01}
+    \drawcatenary{start2}{stack0}{0.01}
+    \drawcatenary{start2}{stack1}{0}
+    \drawcatenary{start5}{start6}{0}
+    \drawcatenary{start6}{start4}{0}
+    \drawcatenary{plt1}{plt0}{0}
+    \drawcatenary{start1}{plt1}{0.01}
+    \drawcatenary{plt0}{libc}{0}
+    \drawcatenary{plt1}{libc}{0}
+    \drawcatenary{plt0}{plt}{0}
+    \drawcatenary{plt1}{plt}{0}
+    \drawcatenary{main1}{main2}{0}
+    \drawcatenary{main1}{cpp0}{0.01}
+    \drawcatenary{main3}{start6}{0.55}
+    \drawcatenary{main2}{main3}{0.01}
+    \drawcatenary{got0}{start5}{0}
+    \drawcatenary{got0}{main2}{0}
+    \drawcatenary{got0}{plt0}{0}
+    
+\end{tikzpicture}
+
+\newpage
+
+\begin{tikzpicture}
+	\createpin{start0}{104,0}
+	\begin{absnode}[0]{start0}{62}{0x08049100 <\_start>}
+		\begin{nasm}
+			<+0>:   endbr32
+		\end{nasm}
+	\end{absnode}
+	
+	\createpin{main0}{34, 0}	
+	\begin{absnode}{main0}{68}{<main> sample pattern}
+		\begin{nasm}
+			<+64>:  sub    esp,0x4
+			<+67>:  lea    eax,[ebp-0xaac]
+			<+73>:  push   eax
+			<+74>:  lea    eax,[ebp-0xaa8]
+			<+80>:  push   eax
+			<+81>:  lea    eax,[ebp-0xa99]
+			<+87>:  push   eax
+			<+88>:  call   0x8049233 <init_map>
+			<+93>:  add    esp,0x10
+		\end{nasm}
+	\end{absnode}
+
+	\createpin{cdecl}{175,-30}
+	\begin{absnode}[-1]{cdecl}{70}{cdecl $-$ C declaration [WikipediA]}
+		Subroutine arguments are passed on stack \\
+		Fun memonic: \texttt{Caller Does End CLeaning} \\\\
+		Return: floating point $\rightarrow$ \texttt{st0} \\
+		$\hspace*{10.4mm}$  integer or memory address $\rightarrow$ \texttt{eax} \\\\
+		\texttt{call}, \texttt{ret} require emptying (pop or free) \texttt{st0-7} excluding ret-used \texttt{st0}; with volatile: \texttt{eax}, \texttt{ecx}, \texttt{edx}
+	\end{absnode}
+	
+	\createpin{cfi}{175,0}
+	\begin{absnode}[-1]{cfi}{70}{CFI $-$ Control-Flow Integrity [Intel SDM]}
+		\texttt{IBT - Indirect Branch Tracking (ENDBR}\textsc{anch}\texttt{)} marking valid jump target address of indirect call \\\\
+		\texttt{SS - Shadow Stack (RET)} poping ret address from another (shadow) stack and comparing them
+	\end{absnode}
+	
+	\createpin{branch}{250,0}
+	\begin{absnode}[-1]{branch}{70}{(In)direct Branch [WikipediA]}
+		\texttt{\ \ Direct:} branch \texttt{X} $\xrightarrow{\hspace{2cm}}$  instruction\\
+		\texttt{Indirect:} branch \texttt{X} $\longrightarrow$ memory $\longrightarrow$ instruction
+	\end{absnode}
+	
+	\createpin{pass0}{250,-20}
+	\begin{absnode}[-1]{pass0}{70}{}
+		\texttt{L2R} order regs assignment \\[2.2mm]
+		\texttt{All-or-Nothing} allocation for aggregate, struct-like \\[2.2mm]
+		\texttt{r11} is deliberately left unused for arg passing and preservation so that PLT code need not spill (temporarily save to memory) any regs when computing the address to which control needs to be transferred
+	\end{absnode}
+	
+	\createpin{pass1}{250,-49.2}
+	\begin{absnode}[-1]{pass1}{70}{Parameter Passing [System V ABI]}
+		\texttt{R2L} order stack pushing for args passed in memory
+	\end{absnode}
+	
+	\createpin{regsusage}{233,-69.5}
+	\begin{absnode}[-1]{regsusage}{104}{Register Usage ([T]rue or [P]artial if non-volatile) [System V ABI]}	
+		\begin{minipage}[t]{\linewidth}
+			\vspace{0pt}
+			\begin{tabularx}{\linewidth}{@{}l|X|l@{}}
+				\multicolumn{1}{c}{Register} &
+				\multicolumn{1}{c}{Usage} &
+				\multicolumn{1}{l}{}\\[0.1em]
+				\hline
+				\rule{0pt}{4mm}\texttt{rax} & temporary reg; with variable args passes
+				information about the number of vector regs used; 1$^{\rm st}$
+				return reg & \\
+				\texttt{rbx} & & \texttt{T} \\
+				\texttt{rcx} & used to pass 4$^{\rm th}$ integer arg to functions & \\
+				\texttt{rdx} & used to pass 3$^{\rm rd}$ arg to functions; 2$^{\rm nd}$ return reg & \\
+				\texttt{rsp} & stack pointer & \texttt{T} \\
+				\texttt{rbp} & optionally used as frame pointer & \texttt{T} \\
+				\texttt{rsi} & used to pass 2$^{\rm nd}$  arg to functions & \\
+				\texttt{rdi} & used to pass 1$^{\rm st}$  arg to functions & \\
+				\texttt{r8} & used to pass 5$^{\rm th}$  arg to functions & \\
+				\texttt{r9} & used to pass 6$^{\rm th}$  arg to functions & \\
+				\texttt{r10} & temporary reg, used to pass a function's static
+				chain pointer & \\
+				\texttt{r11} & temporary reg & \\
+				\texttt{r12-14} & & \texttt{T} \\
+				\texttt{r15} & optionally used as GOT base pointer & \texttt{T} \\
+				\texttt{r16-31} & temporary regs\qquad\;\, \texttt{[Advanced Performance Extensions]} & \\
+				\texttt{xmm0-1} & used to pass and return floating point
+				args & \\
+				\texttt{xmm2-7} & used to pass floating point args & \\
+				\texttt{xmm8-15} & temporary regs & \\
+				\texttt{xmm0-15} & \makebox[\widthof{64byte vector regs}][l]{16byte vector regs}\; \texttt{[\makebox[\widthof{Advanced Vector Extensions}][l]{Streaming SIMD Extensions} $-$ SSE]} & \\ 
+				\texttt{ymm0-15} & \makebox[\widthof{64byte vector regs}][l]{32byte vector regs}\; \texttt{[Advanced Vector Extensions $-$ AVX]} & \\
+				\texttt{zmm0-31} & \makebox[\widthof{64byte vector regs}][l]{64byte vector regs}\; \texttt{(xmmN $\rightarrow$ ymmN $\rightarrow$ zmmN)}\quad\;\;\,\texttt{[AVX-512]} & \\
+				\texttt{tmm0-7}& temporary regs; tile regs\;\;\; \texttt{[Advanced Matrix Extensions]} & \\
+				\texttt{mm0-7}& temporary regs & \\
+				\texttt{k0-7} & temporary regs; vector mask 8byte\qquad\qquad\qquad\, \texttt{[AVX-512]} & \\
+				\texttt{st0-7} & \makebox[\widthof{64byte vector regs }][l]{temporary regs} \texttt{(8byte-MMX/3DNow!-stN)\quad\, [x87 FPU]} & \\
+				\texttt{st0,st1} & used to return \texttt{long double} args &  \\
+				\texttt{fs}& thread pointer & \texttt{T} \\
+				\texttt{mxcsr}& SSE2 control \texttt{[T]} and status \texttt{[F]} word & \texttt{P}\\
+				\texttt{x87 CW}& x87 control word & \texttt{T} \\
+				\texttt{x87 SW}& x87 status word & \\
+				\texttt{tilecfg} & Tile control reg &  
+			\end{tabularx}
+		\end{minipage}
+	\end{absnode}
+
+	\createpin{cpp0}{104,-20}
+	\begin{absnode}[-1]{cpp0}{62}{parameter\_passing() [System V ABI]}
+		\begin{cpp}
+			void function (
+			struct {
+			    int a, b;          - rdi
+			    double d;          - xmm0
+			} s
+			, int e, int f, int g  - rsi, rdx, rcx
+			, int h, long double l - r8, [rsp]
+			, double m, __m256 y   - xmm1, ymm2
+			, __m512 z, double n   - zmm3, xmm4
+			, int i, int j, int k  - r9,[+16],[+24]
+			);
+		\end{cpp}
+	\end{absnode}
+	
+	\createpin{type0}{141,-69.5}
+	\begin{absnode}[-1]{type0}{70}{get\_non\_aggregate\_class(param\_type) [System V ABI]}
+		\begin{tabularx}{\linewidth}{@{}l|X}
+			\multicolumn{1}{c}{Class} &
+			\multicolumn{1}{c}{Sample Type} \\[0.1em]
+			\hline
+			\rule{0pt}{4mm}\texttt{NO\_CLASS} & padding; empty union, structure \\[0.3em]
+			\texttt{INTEGER} & \texttt{ptr; \_Bool; \_BigInt(N <= 64)} \\
+			\texttt{} & \texttt{->} general purpose reg \\[0.3em]
+			\texttt{SSE} & \texttt{\_Float16; \_Decimal32; \_\_m64} \\
+			\texttt{} & \texttt{->} lowest 8byte vector reg \\[0.3em]
+			\texttt{SSEUP} & \texttt{\_\_float128; \_\_m128/256/512}  \\
+			\texttt{} & \texttt{->} \texttt{SSE ||} upper vector reg \\[0.3em]
+			\texttt{MEMORY} & stack \\[0.3em]
+			\texttt{X87/X87UP} & \texttt{long double} \\
+			\texttt{X87} & 8byte mantissa \\
+			\texttt{X87UP} & 2byte exponent \texttt{+} 6byte padding \\[0.3em]
+			\texttt{COMPLEX\_X87} & \texttt{complex long double} \\
+		\end{tabularx}
+		\rule{0pt}{3.6mm}\texttt{\makebox[\widthof{complex T}][r]{\_\_int128} $\leftarrow$ \{long, long\}, 16byte alignment \\[0.4em]
+			complex T $\leftarrow$ \{T, T\}, where: \\
+			T $\in$ float, double, \_Float16, \_\_float128}
+	\end{absnode}
+	
+	\createpin{ret0}{141,-146.2}
+	\begin{absnode}[-1]{ret0}{70}{Parameter Returning [System V ABI]}
+		For \texttt{MEMORY} class return value:
+		\begin{enumerate}[leftmargin=*,label=(\arabic*)]
+			\item Caller allocates storage and passes its\\address as hidden first argument in \texttt{rdi}
+			\item Callee returns this exact address in \texttt{rax}
+			\item The pre-allocated return storage must be completely isolated. It must not overlap with any data that the callee can access through other names, arguments, or pointers
+		\end{enumerate}
+		\vspace{0mm}
+	\end{absnode}
+	
+	\createpin{type1}{50.5,-140}
+	\begin{absnode}[-1]{type1}{101}{get\_aggregate\_class(param\_type) for struct,array,union [System V ABI]}
+		\begin{tabularx}{\linewidth}{@{}l|X}
+			\multicolumn{1}{c}{Class} &
+			\multicolumn{1}{c}{Sample Type} \\[0.1em]
+			\hline
+			\rule{0pt}{4mm}\texttt{INTEGER} & invisible reference -- non-trivial object \texttt{->} can't pass by value \\[0.3em]
+			\texttt{MEMORY} & \texttt{> 8 8byte; has(unaligned field); has\_chunk(MEMORY);} \\ 
+			& \texttt{!form(X87||X87UP); !form(SSE||SSEUPs) > 2 8byte;} \\
+		\end{tabularx}
+		\begin{center}
+			\rule{0pt}{3.6mm}\texttt{SSEUP} $-$ \texttt{!form(SSE||SSEUP) or !form(SSEUP||SSEUP)} $\rightarrow$ \texttt{SSE}
+		\end{center}
+		\begin{cpp}
+			each> 8byte-chunk->class = has(MEM*) ? MEMORY : has(INT*) ? INTEGER : has(*87*) ? MEMORY : SSE
+		\end{cpp}
+	\end{absnode}
+	
+	\createpin{bash}{34,-42}	
+	\begin{absnode}[-1]{bash}{68}{Bash commands}
+		\vspace{0.1mm}
+		\begin{bash}
+			g++ -m32 ?      # calling convention(cdecl)
+			$(?) or `?`      # cmd substitution(stdout)
+			diff -u <(?) <(?) # proc substitution(file)
+			git log --follow -p -- ? # patch history(?)
+		\end{bash}
+		\vspace{0.1mm}
+	\end{absnode}
+	
+	\createpin{nothing}{50.5,-69}	
+	\begin{absnode}[-1]{nothing}{64}{}
+		\includegraphics[width=\linewidth]{image/xor.jpg}
+	\end{absnode}
+	
+	
+	\drawcatenary{cfi}{branch}{0.01}
+	\drawcatenary{cfi}{start0}{0.01}
+	\drawcatenary{regsusage}{pass0}{0}
+	\drawcatenary{main0}{cdecl}{0}
+	\drawcatenary{cdecl}{pass1}{0}
+	\drawcatenary{type1}{type0}{0}
+	\drawcatenary{type0}{regsusage}{0.01}
+	\drawcatenary{cpp0}{regsusage}{0}
+	\drawcatenary{ret0}{regsusage}{0}
+	
+\end{tikzpicture}
+
+\newpage
+
+\begin{tikzpicture}
+	
+	\createpin{gcc0}{250,0}
+	\begin{absnode}[-1]{gcc0}{70}{Inputting}
+		\setlength{\parskip}{1em}
+		\texttt{[Windows Linux macOS].cpp;} \\
+		\textcolor{darkgray!90}{source file \texttt{=} source code \texttt{+} directives}
+	\end{absnode}
+	
+	\createpin{gcc1}{250,-20}
+	\begin{absnode}[-1]{gcc1}{70}{\href{https://en.wikipedia.org/wiki/Translation_unit_(programming)}{Preprocessing}}
+		\setlength{\parskip}{1em}
+		\texttt{[Windows].i; [Linux macOS].ii;} \\
+		\textcolor{darkgray!90}{translation unit \texttt{=} preprocessed source file}
+	\end{absnode}
+
+	\createpin{gcc2}{250,-40}
+	\begin{absnode}[-1]{gcc2}{70}{\href{https://en.wikipedia.org/wiki/Compiler}{Compiling}}
+		\texttt{[Windows Linux macOS].s;}
+	\end{absnode}
+
+	\createpin{gcc3}[1]{250,-54.3}
+	\begin{absnode}[-1]{gcc3L1}{70}{Frontend}
+		\textcolor{darkgray!90}{intermediate representation}
+	\end{absnode}
+
+	\createpin{gcc4}[1]{250,-68.3}
+	\begin{absnode}[-1]{gcc4L1}{70}{Middleend}
+		\textcolor{darkgray!90}{optimized intermediate representation}
+	\end{absnode}
+	
+	\createpin{gcc5}[1]{250,-82.3}
+	\begin{absnode}[-1]{gcc5L1}{70}{Backend}
+		\textcolor{darkgray!90}{target-dependent assembly language source code}
+	\end{absnode}
+	
+	\createpin{gcc6}{250,-102.3}
+	\begin{absnode}[-1]{gcc6}{70}{\href{https://en.wikipedia.org/wiki/Object_file}{Assembling}}
+		\texttt{[COFF].obj; [ELF Mach-O].o;} \\
+		\textcolor{darkgray!90}{object file \texttt{=} metadata \texttt{+} [machine $\in$ object] code}
+	\end{absnode}
+	
+	\createpin{gcc7}{250,-122.3}
+	\begin{absnode}[-1]{gcc7}{70}{\href{https://csapp.cs.cmu.edu/2e/ch7-preview.pdf}{Linking}}
+		\texttt{[COFF\texttt{|}PE].exe; [ELF Mach-O];} \\
+		\textcolor{darkgray!90}{executable file}
+	\end{absnode}
+
+	\createpin{gcc8}[1]{250,-142.3}
+	\begin{absnode}[-1]{gcc8L1}{70}{\href{https://en.wikipedia.org/wiki/Static_library}{Static Library Creating}}
+		\texttt{[Windows].lib; [Linux macOS].a;} \\
+		\textcolor{darkgray!90}{statically linked library}
+	\end{absnode}
+	
+	\createpin{gcc9}[1]{250,-162.3}
+	\begin{absnode}[-1]{gcc9L1}{70}{\href{https://en.wikipedia.org/wiki/Dynamic_library}{Dynamic Library Creating}}
+		\texttt{[PE].dll; [ELF].so; [Mach-O].dylib;} \\
+		\textcolor{darkgray!90}{dynamically linked library}
+	\end{absnode}
+	
+	\createpin{exec}{250,-182.3}
+	\begin{absnode}[-1]{exec}{70}{}
+		\textcolor{darkgray!90}{Program Loading} -- \texttt{Executing [System V ABI]}
+	\end{absnode}
+	
+	\createpin{bash}{176,0}
+	\begin{absnode}[-1]{bash}{68}{Bash commands}
+		\begin{bash}
+			g++ -save-temps -masm=intel ?
+			g++ -m32 -fno-pie -no-pie ?
+			g++ -m32 -fno-pie -pie ?
+			strace -o ? ./?
+		\end{bash}
+	\end{absnode}
+	
+	\createpin{pic}{176,-27}
+	\begin{absnode}[-1]{pic}{68}{}
+		\textsc{very very helpful \href{https://stackoverflow.com/questions/43367427/32-bit-absolute-addresses-no-longer-allowed-in-x86-64-linux}{\texttt{[link]}}}\\\\
+		\texttt{Position-Independent Code (PIC)} \\
+		a body of machine code that executes properly regardless of its memory address\\\\
+		\texttt{Position-Independent Executable (PIE)}\\
+		\texttt{-fPIE} assumes no symbol interposition for global vars\texttt{/}funcs, unlike \texttt{-fPIC} for shared libraries which have to go through the GOT to access globals 
+	\end{absnode}
+	
+    \createpin{stack}{176,-72}
+	\begin{absnode}[-1]{stack}{68}{Conventional Segment Arrangements [System V ABI]}
+		\centering
+		\renewcommand{\arraystretch}{1.6}
+		\begin{tabular}{r|c|}
+            \cline{2-2}
+			\verb|0xffffffffffffffff| & Reserved system area \\
+			& $\cdots$ \\
+			\cline{2-2}
+			& $\cdots$ \\
+			& Dynamic segments \\
+			\cline{2-2}
+			\verb|0x7ffffffffff| & Stack segment \\
+			& $\cdots$ \\
+			\cline{2-2}
+			& $\cdots$ \\
+			& Data segments \\
+			\cline{2-2}
+			& $\cdots$ \\
+			\verb|0x400000| & Text segments \\
+			\cline{2-2}
+			\verb|0| & Unmapped \\
+			\cline{2-2}
+		\end{tabular}
+		\vspace{1mm}
+	\end{absnode}
+
+    \createpin{exec0}{57.5,-147}
+	\begin{absnode}[-1]{exec0}{115}{Program Loading [System V ABI]}
+		\begin{enumerate}[leftmargin=*,label=(\arabic*)]
+			\item Map file segments, in which \texttt{p\_vaddr $\equiv$ p\_offset$\pmod{\texttt{pg\_size}}$} for efficient mapping, to virtual memory segments
+			\item Last \textbf{file page} of text segment may contain first page of data segment; last data page may contain file information not relevant to the running process to save space
+			\item Segments’ addresses are adjusted to ensure each logical page in the address space has a single set of permissions as if each segment were complete and separate
+			\item End of the data segment requires special handling, zero out, for uninitialized data; thus, (irrelevant) information not in the logical memory page must be zeroed out
+			\item Executable file, shared object typically contains absolute code, PIC respectively
+		\end{enumerate}
+	\end{absnode}
+
+    \createpin{exec1}{165,-147}
+	\begin{absnode}[-1]{exec1}{90}{Virtual Address Space [System V ABI]}
+		\begin{enumerate}[leftmargin=*,label=(\arabic*)]
+			\item Only required to handle 48-bit addresses, therefore, conforming processes may only use addresses up to \texttt{0x7fffffffffff}
+			\item Systems are permitted to use any $2^n$ page size in \texttt{[4KB, 64KB]}
+			\item Conceptually, processes has full address space, but in practice process size is limited by system-reserved space, per-process limits, available combined physical memory and 2nd storage
+			\item Dereferencing \texttt{null} pointer is erroneous, process should not expect \texttt{0x0} to be a valid address
+			\item Applications may control their memory assignments
+		\end{enumerate}
+	\end{absnode}
+	
+	\createpin{main0}{106, 0}
+	\begin{absnode}{main0}{62}{0x8049871 <main>}
+		\begin{nasm}
+			<+21>:  call   0x8049150 <__x86.get_pc_thunk.bx>
+			<+26>:  add    ebx,0x2775; 0x804c000
+		\end{nasm}
+	\end{absnode}
+	
+	\createpin{printf0}{35, 0}
+	\begin{absnode}{printf0}{70}{g++ -m32 -fno-pie -pie [printf("0").cpp]}
+		\texttt{x86\_64-linux-gnu-ld.bfd:}\\
+		warning: relocation against \texttt{`putchar@@GLIBC\_2.0'} in read-only section \texttt{`.text'}\\
+		warning: creating \texttt{DT\_TEXTREL} in a PIE
+	\end{absnode}
+	
+	\createpin{printf1}{35, -27}
+	\begin{absnode}{printf1}{70}{0x0000118d <main> [printf("0").cpp]}
+		\begin{nasm}
+			<+17>: 83 ec 0c         sub    esp,0xc
+			<+20>: 6a 30            push   0x30
+			<+22>: e8 fc ff ff ff   call   ..<main+23>
+			<+27>: 83 c4 10         add    esp,0x10
+		\end{nasm}
+	\end{absnode}
+	
+	\createpin{printf2}{106, -24}
+	\begin{absnode}{printf2}{62}{.rel.dyn [printf("0").cpp]}
+		\centering
+		\begin{tabular}{ccc}
+			Offset & Info & Sym.Value \\
+			000011a4 & 00000502 & 00000000\\
+			\texttt{<main+23>}&&\\[1mm]
+			\hline
+		\end{tabular}
+		\begin{tabular}{cc}
+			\rule{0pt}{3.5mm}Sym. Name & Type\\
+			\texttt{putchar@GLIBC\_2.0} & \texttt{R\_386\_PC32}
+		\end{tabular}
+	\end{absnode}
+	
+	\createpin{printf3}{106, -57}
+	\begin{absnode}{printf3}{62}{.dynamic [printf("0").cpp]}
+		\centering
+		\setlength{\tabcolsep}{3pt}
+		\begin{tabular}{clr}
+			Tag & \multicolumn{1}{c}{Type} & Name\texttt{/}Val\\
+			0x00000016 & \texttt{TEXTREL} & 0x0 \\
+			0x0000001e & \texttt{FLAGS} & \texttt{TEXTREL}\\
+		\end{tabular}, where:\\[0.5mm]
+		\texttt{TEXTREL} is jargon for text relocation
+	\end{absnode}
+	
+	\createpin{printf4}{106, -84}
+	\begin{absnode}{printf4}{62}{.program\_headers [printf("0").cpp]}
+		\centering
+		\setlength{\tabcolsep}{3pt}
+		\begin{tabular}{cccc}
+			Type & FileSiz & MemSiz & Align\\
+			\texttt{LOAD} & 0x001cc & 0x001cc & 0x1000\\[1mm]
+			\hline
+		\end{tabular}
+		\begin{tabular}{cccc}
+			\rule{0pt}{3.5mm}Offset & VirtAddr & PhysAddr & Flg\\
+			0x001000 & 0x00001000 & 0x00001000 & \texttt{R E}
+		\end{tabular}
+	\end{absnode}
+	
+	\createpin{printf5}{35, -54}
+	\begin{absnode}{printf5}{70}{.section\_headers [printf("0").cpp]}
+		\centering
+		\begin{tabular}{ccccc}
+			\texttt{[Nr]} & Name & Type & ES & Flg\\
+			\texttt{[13]} & \texttt{.text} & \texttt{PROGBITS} & 00 & \texttt{AX}\\[1mm]
+			\hline
+		\end{tabular}
+		\begin{tabular}{cccccc}
+			\rule{0pt}{3.5mm} Addr & Off & Size & Lk & Inf & Al\\
+			00001060 & 001060 & 000158  & 0 & 0 & 16
+		\end{tabular}
+		\vspace{0.3mm}
+	\end{absnode}   
+	
+	\createpin{printf6}{35, -84}
+	\begin{absnode}{printf6}{70}{memory\_mapping() [printf("0").cpp]}
+		\begin{cpp}
+			execve("?", ["?"], 0x... /* 57 vars */) = 0
+			                     ...
+			mprotect(0xf7eef000, 8192, PROT_READ)   = 0
+			mprotect(0x565ec000, 4096, /*   metadata */ PROT_READ|PROT_WRITE)               = 0
+			mprotect(0x565ed000, 4096, /*   text seg */ PROT_READ|PROT_WRITE|PROT_EXEC) = 0
+			mprotect(0x565ee000, 4096, /* rodata seg */ PROT_READ|PROT_WRITE)               = 0
+			
+			mprotect(0x565ee000, 4096, PROT_READ)   = 0
+			mprotect(0x565ed000, 4096, /*   text seg */ PROT_READ|PROT_EXEC)                = 0
+			mprotect(0x565ec000, 4096, PROT_READ)   = 0
+			mprotect(0x565ef000, 4096, PROT_READ)   = 0
+		\end{cpp}
+	\end{absnode}       
+	                
+	\drawcatenary{gcc6}{gcc8}{0}
+	\drawcatenary{gcc6}{gcc9}{0}
+	\drawcatenary{main0}{pic}{0}
+	\drawcatenary{printf0}{pic}{0}
+	\drawcatenary{printf0}{printf1}{0}
+	\drawcatenary{printf1}{printf2}{0}
+	\drawcatenary{exec1}{stack}{0}
+	\drawcatenary{exec1}{exec0}{0.01}
+	\drawcatenary{printf6}{exec0}{0}
+	\drawcatenary{printf6}{stack}{0}
+	\drawcatenary{printf5}{printf3}{0}
+	\drawcatenary{printf3}{printf4}{0}
+	\drawcatenary{printf3}{printf2}{0}
+	\drawcatenary{printf4}{printf6}{0.01}
+	\drawcatenary{exec}{stack}{0}
+	
+\end{tikzpicture}
+
+\begin{minipage}[t]{0.49\textwidth}
+	\setlength{\parskip}{1em}
+	\begin{enumerate}
+	    \item[\texttt{[1]}] Why does \texttt{endbr32} appear only once, i.e., at the beginning of the \texttt{\_start} procedure? \\
+	    $\hookrightarrow$ The question is deferred for further analysis because it remains doubtful
+	    \item[\texttt{[1]}] Why is \texttt{ebp} necessarily set to 0 before transferring to the calling \texttt{main} procedure? \\
+	    $\hookrightarrow$ \texttt{ebp} will act as a \texttt{NULL} pointer, allowing any procedure (e.g., unwinding) to chain through frame pointers to the \texttt{NULL} end
+	    \item[\texttt{[6]}] What is the contribution of the \texttt{ebx} here? Padding purpose only? \\
+	    $\hookrightarrow$ PIC snippet for computing the \texttt{.GOT} base/reference \texttt{G} in \texttt{ebx}: \texttt{<+45>} obtains the next-instruction address (\texttt{<+20>}) from the stack, then  \texttt{<+20>} converts it to \texttt{G}
+	    \item[\texttt{[4]}] Why is there an extra \texttt{push eax} instruction? Is that caller-saved?  \\
+	    $\hookrightarrow$ Dummy padding for 16-byte alignment
+	    \item[\texttt{[8]}] What is the purpose of the \texttt{hlt} instruction? \\
+	    $\hookrightarrow$ \texttt{\_\_libc\_start\_main} handles program exit and never returns; therefore, the \texttt{hlt} is reached only if it unexpectedly returns, causing the program to crash
+	    \item[\texttt{[9]}] Why must we specify the \texttt{ds}, i.e. data segment, prefix before the \texttt{.got.plt} address? \\
+		$\hookrightarrow$ Disassembler notation or display convention
+		\item[\texttt{[0]}] The complex sequence [0, 12, 11] mostly comes from the hardness of guaranteeing 16-byte alignment, doesn't it? \\
+		$\hookrightarrow$ True
+		\item[\texttt{[\_]}] \texttt{[Information]} 128byte red zone is reserved and shall not be modified by signal or interrupt handlers; leaf functions may use this area for their entire stack frame, rather than adjusting the stack pointer in the prologue and epilogue \texttt{[System V ABI]}
+		\item[\texttt{[\_]}] \texttt{[Information]} the size of each argument gets rounded up to 8byte \texttt{[System V ABI]}
+	\end{enumerate}
+	
+	\setlength{\parskip}{0.4em}
+	\userline
+	
+	\setlength{\parskip}{1em}
+	\begin{enumerate}
+		\item[\texttt{[0]}] Why does \texttt{endbr32} appear only once, i.e., at the beginning of the \texttt{\_start} procedure?\\
+		$\hookrightarrow$ I was mistaken; in fact, several other procedures (such as \texttt{frame\_dummy} and \texttt{\_\_do\_global\_dtors\_aux}) also have \texttt{endbr32} at the beginning!
+		\item[\texttt{[0]}] Why doesn't \texttt{endbr32} appear in the \texttt{\_start} procedure when compiling sample code \texttt{hello-world.cpp} with \texttt{-m32}, like in \texttt{babygame03}? \texttt{[Sep 7, 2026]} \\
+		$\hookrightarrow$ It turns out that the \texttt{\_start} code comes from \texttt{glibc’s start.S} and removes CET support in commit \href{https://sourceware.org/git/?p=glibc.git;a=commit;h=25f1e16ef03a6a8fb1701c4647d46c564480d88c}{\texttt{25f1e16ef03a6a8fb1701c4647d46c564480d88c}}
+		\item[\texttt{[0]}] \texttt{[Fun insight]} \texttt{\_\_attribute\_\_((nocf\_check))} attribute can force a function to disallow indirect branches in CET mode
+		\item[\texttt{[1]}] \texttt{[Information]} the reason for \texttt{<+64>} is that the stack needs to be 16byte (32 or 64, if \texttt{\_\_m256} or \texttt{\_\_m512} is passed on the stack) aligned immediately before \texttt{call} is executed
+	\end{enumerate}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+	\setlength{\parskip}{1em}
+	\begin{enumerate}
+		\item[\texttt{[\_]}] \texttt{[Information]} Preprocess (preprocessor directives)\\
+		$\hookrightarrow$ Header files inclusion, macro expansion, and conditional compilation
+		\item[\texttt{[\_]}] \texttt{[Information]} Compiling\texttt{/}Frontend\\
+		$\hookrightarrow$ Verify syntax and semantics through lexical, syntax, and semantic analysis
+		\item[\texttt{[\_]}] \texttt{[Information]} Compiling\texttt{/}Middleend\\
+		$\hookrightarrow$ Perform optimizations that are independent of CPU architecture through reachability analysis, constant propagation, relocation of computation, etc.
+		\item[\texttt{[\_]}] \texttt{[Information]} Compiling\texttt{/}Backend\\
+		$\hookrightarrow$ Perform optimizations that are specific for the CPU architecture through register allocation, instruction scheduling to keep parallel execution units busy
+		\item[\texttt{[\_]}] \texttt{[Information]} Assembling\\
+		$\hookrightarrow$ Object code is usually relocatable, and not usually directly executable\\
+		$\hookrightarrow$ Metadata contains linking or debugging in4, such as stack unwinding information\\
+		$\hookrightarrow$ Assembly code is translated to machine code and same machine code can be packaged in different object file formats
+		\item[\texttt{[\_]}] \texttt{[Information]} Linking\\
+		$\hookrightarrow$ Symbol resolution (static) -- associating each symbol reference with exactly one symbol definition from the symbol tables of its input relocatable object files\\
+		$\hookrightarrow$ Section relocation -- associating a memory location with each symbol definition, then modifying all references to those symbols so that they point to this memory location
+		\item[\texttt{[\_]}] \texttt{[Information]} Static Library Creating\\
+		$\hookrightarrow$ Collection of object files, usually comes in the form of \texttt{ar} archive files, augmented with a symbol table that accelerates the search for the needed files\\
+		$\hookrightarrow$ Static library contributes its code to output
+		\item[\texttt{[\_]}] \texttt{[Information]} Dynamic Library Creating\\
+		$\hookrightarrow$ Dynamic libraries and executables usually have the same format, so only one loader is needed, and an executable can be used as a shared library\\
+		$\hookrightarrow$ Shared library generally contributes symbol or dependency information to output
+		\item[\texttt{[0]}] Why does 32-bit mode access GOT via \texttt{get\_pc\_thunk} instead of its absolute address?\\
+		$\hookrightarrow$ Because it does not conform to g++'s default behavior with \texttt{-fpie -pie} options
+		\item[\texttt{[0]}] In 32-bit mode, why isn't the GOT accessed via a PC-relative instruction instead?\\
+		$\hookrightarrow$ x86 only allows PC-relative addressing for branching, not for general data accessing
+		\item[\texttt{[2]}] How are offsets managed when loading a PIE binary?\\
+		$\hookrightarrow$ When loading a PIE binary (\texttt{ET\_DYN}), kernel maps it at a random base address; then dynamic linker applies base relocations to fix absolute data pointers\\
+		$\hookrightarrow$ PIE code uses PC-relative addressing, it runs correctly regardless of its location
+	\end{enumerate}
+\end{minipage}
+
+\end{document}

